@@ -99,18 +99,37 @@
 
         document.getElementById("registrarCliente").addEventListener("submit", async (e) => {
             e.preventDefault();
-            let nombre = document.getElementById("nombre").value;
+        
+            let nombre = document.getElementById("nombre").value.trim();
             let cantidad = parseFloat(document.getElementById("cantidad").value);
             let fecha = document.getElementById("fechaRegistro").value || new Date().toISOString();
-            
+        
+            if (!nombre) {
+                alert("El nombre del cliente es obligatorio.");
+                return;
+            }
+        
             try {
-                await addDoc(collection(db, "adeudos", "clientes", "datos"), { nombre, cantidad, fecha });
-                alert("Cliente registrado");
+                // 🔍 Verificar si el cliente ya existe en Firestore
+                const clientesRef = collection(db, "adeudos", "clientes", "datos");
+                const consulta = query(clientesRef, where("nombre", "==", nombre));
+                const resultado = await getDocs(consulta);
+        
+                if (!resultado.empty) {
+                    alert("⚠ El cliente ya está registrado.");
+                    return; // ❌ No registrar duplicados
+                }
+        
+                // ✅ Si el cliente no existe, lo registramos
+                await addDoc(clientesRef, { nombre, cantidad, fecha });
+        
+                alert("✅ Cliente registrado correctamente.");
                 location.reload();
             } catch (error) {
-                alert("Error al registrar cliente: " + error.message);
+                alert("❌ Error al registrar cliente: " + error.message);
             }
         });
+
 
         async function cargarClientes() {
             const clientesSelect = document.getElementById("clientes");
