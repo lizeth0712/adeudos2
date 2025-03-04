@@ -98,38 +98,37 @@
         const db = getFirestore(app);
 
         document.getElementById("registrarCliente").addEventListener("submit", async (e) => {
-            e.preventDefault();
-        
-            let nombre = document.getElementById("nombre").value.trim();
-            let cantidad = parseFloat(document.getElementById("cantidad").value);
-            let fecha = document.getElementById("fechaRegistro").value || new Date().toISOString();
-        
-            if (!nombre) {
-                alert("El nombre del cliente es obligatorio.");
-                return;
-            }
-        
-            try {
-                // 🔍 Verificar si el cliente ya existe en Firestore
-                const clientesRef = collection(db, "adeudos", "clientes", "datos");
-                const consulta = query(clientesRef, where("nombre", "==", nombre));
-                const resultado = await getDocs(consulta);
-        
-                if (!resultado.empty) {
-                    alert("⚠ El cliente ya está registrado.");
-                    return; // ❌ No registrar duplicados
-                }
-        
-                // ✅ Si el cliente no existe, lo registramos
-                await addDoc(clientesRef, { nombre, cantidad, fecha });
-        
-                alert("✅ Cliente registrado correctamente.");
-                location.reload();
-            } catch (error) {
-                alert("❌ Error al registrar cliente: " + error.message);
-            }
-        });
+    e.preventDefault();
 
+    let nombre = document.getElementById("nombre").value.trim();
+    let cantidad = parseFloat(document.getElementById("cantidad").value);
+    let fecha = document.getElementById("fechaRegistro").value || new Date().toISOString();
+
+    if (!nombre) {
+        alert("El nombre del cliente es obligatorio.");
+        return;
+    }
+
+    try {
+        // 🔍 Verificar si el cliente ya existe en Firestore
+        const clientesRef = collection(db, "adeudos", "clientes", "datos");
+        const consulta = query(clientesRef, where("nombre", "==", nombre));
+        const resultado = await getDocs(consulta);
+
+        if (!resultado.empty) {
+            alert("⚠ El cliente ya está registrado.");
+            return; // ❌ No registrar duplicados
+        }
+
+        // ✅ Si el cliente no existe, lo registramos
+        await addDoc(clientesRef, { nombre, cantidad, fecha });
+
+        alert("✅ Cliente registrado correctamente.");
+        location.reload();
+    } catch (error) {
+        alert("❌ Error al registrar cliente: " + error.message);
+    }
+});
 
         async function cargarClientes() {
             const clientesSelect = document.getElementById("clientes");
@@ -150,12 +149,37 @@
         async function actualizarCantidadActual() {
             let clienteId = document.getElementById("clientes").value;
             if (!clienteId) return;
+
             let clienteRef = doc(db, "adeudos", "clientes", "datos", clienteId);
             let clienteSnap = await getDoc(clienteRef);
+
             if (clienteSnap.exists()) {
-                document.getElementById("cantidadActual").textContent = `Cantidad actual: ${clienteSnap.data().cantidad}`;
+                let clienteData = clienteSnap.data();
+
+                // 📌 Mostrar la cantidad actual
+                document.getElementById("cantidadActual").textContent = `Cantidad actual: ${clienteData.cantidad}`;
+
+                // 📌 Formatear correctamente la fecha de registro
+                let fechaRegistro = clienteData.fecha ? formatearFecha(clienteData.fecha) : "Fecha no disponible";
+                document.getElementById("fechaRegistroActual").textContent = `Fecha: ${fechaRegistro}`;
             }
         }
+
+        // 📅 Función para formatear la fecha correctamente
+        function formatearFecha(fechaString) {
+            // 🔹 La fecha viene en formato "YYYY-MM-DD", la dividimos en partes
+            let [year, month, day] = fechaString.split("-");
+
+            // 🔹 Convertimos el mes numérico en nombre de mes abreviado
+            const meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+            let mesNombre = meses[parseInt(month, 10) - 1]; // Restamos 1 porque los arrays comienzan desde 0
+
+            // 🔹 Retornamos en formato "DD-MMM-YYYY"
+            return `${day} ${mesNombre} ${year}`;
+        }
+
+
+
 
         document.getElementById("clientes").addEventListener("change", actualizarCantidadActual);
 
@@ -254,7 +278,7 @@
     <form id="registrarCliente">
         <input type="text" id="nombre" placeholder="Nombre" required>
         <input type="number" id="cantidad" placeholder="Cantidad" required>
-        <input type="datetime-local" id="fechaRegistro">
+        <input type="date" id="fechaRegistro">
         <button type="submit">Registrar</button>
     </form>
 
@@ -262,10 +286,11 @@
     <form id="actualizarCliente">
         <select id="clientes"></select>
         <p id="cantidadActual">Cantidad actual: --</p>
+        <p id="fechaRegistroActual">Fecha: --</p>
         <input type="radio" name="operacion" value="agregar" checked> Agregar
         <input type="radio" name="operacion" value="quitar"> Quitar
         <input type="number" id="cantidadMod" placeholder="Cantidad" required>
-        <input type="datetime-local" id="fechaModificacion">
+        <input type="date" id="fechaModificacion">
         <button type="submit">Actualizar</button>
     </form>
 
