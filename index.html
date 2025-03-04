@@ -1,0 +1,260 @@
+<!DOCTYPE html> 
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Préstamos</title>
+    <style>
+        /* Estilos generales */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h2 {
+            color: #333;
+            text-align: center;
+        }
+
+        form {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            margin: 20px auto;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        button {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 10px;
+            width: 100%;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background-color: #218838;
+        }
+
+        #cantidadActual {
+            font-weight: bold;
+            text-align: center;
+        }
+
+        /* Estilos para la lista de historial */
+        ul {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            margin: 20px auto;
+            list-style-type: none;
+        }
+
+        ul li {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        ul li:last-child {
+            border-bottom: none;
+        }
+    </style>
+    <script type="module">
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-analytics.js";
+        import { getFirestore, collection, addDoc, updateDoc, doc, getDocs, getDoc, query, where, orderBy } from "https://www.gstatic.com/firebasejs/11.4.0/firebase-firestore.js";
+
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+          apiKey: "AIzaSyCyhcZWop5U0ZcSEIYTBMxGsIDlaTxrOKg",
+          authDomain: "adeudos-78ae6.firebaseapp.com",
+          projectId: "adeudos-78ae6",
+          storageBucket: "adeudos-78ae6.firebasestorage.app",
+          messagingSenderId: "1092411240862",
+          appId: "1:1092411240862:web:f68131a312b93fc3f4268f",
+          measurementId: "G-G1NLWDKB4J"
+        };
+        
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const db = getFirestore(app);
+
+        document.getElementById("registrarCliente").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            let nombre = document.getElementById("nombre").value;
+            let cantidad = parseFloat(document.getElementById("cantidad").value);
+            let fecha = document.getElementById("fechaRegistro").value || new Date().toISOString();
+            
+            try {
+                await addDoc(collection(db, "adeudos", "clientes", "datos"), { nombre, cantidad, fecha });
+                alert("Cliente registrado");
+                location.reload();
+            } catch (error) {
+                alert("Error al registrar cliente: " + error.message);
+            }
+        });
+
+        async function cargarClientes() {
+            const clientesSelect = document.getElementById("clientes");
+            const historialSelect = document.getElementById("historialClientes");
+            const querySnapshot = await getDocs(collection(db, "adeudos", "clientes", "datos"));
+            clientesSelect.innerHTML = "";
+            historialSelect.innerHTML = "";
+            querySnapshot.forEach((doc) => {
+                let option = document.createElement("option");
+                option.value = doc.id;
+                option.textContent = doc.data().nombre;
+                clientesSelect.appendChild(option);
+                historialSelect.appendChild(option.cloneNode(true));
+            });
+            actualizarCantidadActual();
+        }
+
+        async function actualizarCantidadActual() {
+            let clienteId = document.getElementById("clientes").value;
+            if (!clienteId) return;
+            let clienteRef = doc(db, "adeudos", "clientes", "datos", clienteId);
+            let clienteSnap = await getDoc(clienteRef);
+            if (clienteSnap.exists()) {
+                document.getElementById("cantidadActual").textContent = `Cantidad actual: ${clienteSnap.data().cantidad}`;
+            }
+        }
+
+        document.getElementById("clientes").addEventListener("change", actualizarCantidadActual);
+
+        document.getElementById("actualizarCliente").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            let clienteId = document.getElementById("clientes").value;
+            let operacion = document.querySelector('input[name="operacion"]:checked').value;
+            let cantidadMod = parseFloat(document.getElementById("cantidadMod").value);
+            let fecha = document.getElementById("fechaModificacion").value || new Date().toISOString();
+
+            try {
+                let clienteRef = doc(db, "adeudos", "clientes", "datos", clienteId);
+                let clienteSnap = await getDoc(clienteRef);
+                if (!clienteSnap.exists()) throw new Error("Cliente no encontrado");
+
+                let clienteData = clienteSnap.data();
+                let nuevaCantidad = operacion === "agregar" ? clienteData.cantidad + cantidadMod : clienteData.cantidad - cantidadMod;
+
+                await updateDoc(clienteRef, { cantidad: nuevaCantidad, fecha });
+                await addDoc(collection(db, "adeudos", "clientes", "historial"), { 
+                    nombre: clienteData.nombre, 
+                    cantidad: cantidadMod, 
+                    fecha, 
+                    operacion, 
+                    cantidadActual: nuevaCantidad 
+                });
+                alert("Cliente actualizado");
+                location.reload();
+            } catch (error) {
+                alert("Error al actualizar cliente: " + error.message);
+            }
+        });
+
+        document.getElementById("formMostrarHistorial").addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            let clienteId = document.getElementById("historialClientes").value;
+            let historialLista = document.getElementById("historialLista");
+
+            // Limpiar la lista antes de mostrar el nuevo historial
+            historialLista.innerHTML = "";
+
+            if (!clienteId) {
+                alert("Por favor, selecciona un cliente para ver su historial.");
+                return;
+            }
+
+            try {
+                // Obtener el nombre del cliente desde la colección "datos"
+                let clienteRef = doc(db, "adeudos", "clientes", "datos", clienteId);
+                let clienteSnap = await getDoc(clienteRef);
+
+                if (!clienteSnap.exists()) {
+                    alert("Cliente no encontrado.");
+                    return;
+                }
+
+                let clienteNombre = clienteSnap.data().nombre; // Usamos el nombre
+
+                // Consultar historial usando el nombre del cliente y ordenando por fecha descendente
+                const historialQuery = query(
+                    collection(db, "adeudos", "clientes", "historial"),
+                    where("nombre", "==", clienteNombre),
+                    orderBy("fecha", "desc") // Ordenar de más reciente a más antiguo
+                );
+
+                const querySnapshot = await getDocs(historialQuery);
+
+                if (querySnapshot.empty) {
+                    let item = document.createElement("li");
+                    item.textContent = "No hay historial disponible para este cliente.";
+                    historialLista.appendChild(item);
+                    return;
+                }
+
+                querySnapshot.forEach((doc) => {
+                    let data = doc.data();
+                    let item = document.createElement("li");
+                    item.textContent = `📅 Fecha: ${data.fecha} |  Operación: ${data.operacion} | 💰 Cantidad: ${data.cantidad} | 🔢 Cantidad Actual: ${data.cantidadActual}`;
+                    historialLista.appendChild(item);
+                });
+            } catch (error) {
+                console.error("Error al obtener el historial:", error);
+                alert("Hubo un error al obtener el historial. Revisa la consola para más detalles.");
+            }
+        });
+
+
+
+
+        window.onload = cargarClientes;
+    </script>
+</head>
+<body>
+    <h2>Registrar Cliente</h2>
+    <form id="registrarCliente">
+        <input type="text" id="nombre" placeholder="Nombre" required>
+        <input type="number" id="cantidad" placeholder="Cantidad" required>
+        <input type="datetime-local" id="fechaRegistro">
+        <button type="submit">Registrar</button>
+    </form>
+
+    <h2>Modificar Cliente</h2>
+    <form id="actualizarCliente">
+        <select id="clientes"></select>
+        <p id="cantidadActual">Cantidad actual: --</p>
+        <input type="radio" name="operacion" value="agregar" checked> Agregar
+        <input type="radio" name="operacion" value="quitar"> Quitar
+        <input type="number" id="cantidadMod" placeholder="Cantidad" required>
+        <input type="datetime-local" id="fechaModificacion">
+        <button type="submit">Actualizar</button>
+    </form>
+
+    <h2>Historial de Cliente</h2>
+    <form id="formMostrarHistorial">
+        <select id="historialClientes" required></select>
+        <button type="submit">Mostrar Historial</button>
+    </form>
+    <ul id="historialLista"></ul>
+</body>
+</html>
